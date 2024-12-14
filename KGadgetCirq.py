@@ -57,7 +57,7 @@ class KGadgetSimulator:
         
         #Generate a Random Clifford Sequence
         self.clifford_seq = [RandomCliff(n) for _ in range(t)]
-
+        
 
     #GENERAL HELPERS
     @staticmethod
@@ -148,8 +148,9 @@ class KGadgetSimulator:
     def compressed_simulation(self,):
         alpha = (1-np.sqrt(1-self.p))/(np.sqrt(2*(1-self.p)))
         basis = self.standard_basis(self.t)
-
+        print("Basis: "+str(basis))
         stab_states = []
+        print("Set of bit str: ")
         for bit_str in basis:
             alpha_scalar = alpha**(np.sum(bit_str))
             circuit = self.compressed_partial_circuit(bit_str)
@@ -234,92 +235,12 @@ def K_Fidelty(t,a,v):
 if __name__ == '__main__':
     import matplotlib.pyplot as plt 
     from tqdm import tqdm
-    
-    '''
-    #SIMULATIONS WITH RESPECT TO n AND t
-    N = 100
-    max_t = 21
-    n = 1
-    p = .10
 
-    errors_t = {i:[] for i in range(1,max_t)}
-    for _ in tqdm(range(N)):
-        for t in range(1,max_t):
-            sim = KGadgetSimulator(n,t,p)
-            compressed_output = sim.compressed_simulation()
-            true_output = sim.true_sim()
-            delta = sim.get_error(compressed_output,true_output)
-            errors_t[t].append(float(delta))
-
-    with open('errors_t.json', 'w') as json_file:
-        json.dump(errors_t, json_file, indent=4)
-    
-        
-    N = 100
-    max_n = 11
-    t = 10
-    p = .10
-    errors_n = {i:[] for i in range(1,max_n)}
-    for _ in tqdm(range(N)):
-        for n in tqdm(range(1,max_n)):
-            sim = KGadgetSimulator(n,t,p)
-            compressed_output = sim.compressed_simulation()
-            exact_circuit = sim.exact_circuit()
-            exact_output = sim.run_simulation(exact_circuit)
-
-            delta = sim.get_error(compressed_output,exact_output)
-            errors_n[n].append(float(delta))
-
-    with open('errors_n.json', 'w') as json_file:
-        json.dump(errors_n, json_file, indent=4)
-    
-    
-    
-
-    # PLOTTING 
-    with open('errors_t.json', 'r') as json_file:
-        errors = json.load(json_file)
-
-    plot_errors(errors,'t',log=False)
-    plot_errors(errors,'t',log=True)
-
-    
-    with open('errors_n.json', 'r') as json_file:
-        errors = json.load(json_file)
-        
-    plot_errors(errors,'n')
-    plot_errors(errors,'t',log=True)
-    
-
-
-
-    #PLOTTING ERROR WITH RESPECT TO FIDELITY 
-    with open('errors_t.json', 'r') as json_file:
-        errors = json.load(json_file)
-
-    fids = []
-    errors_avgs = []
-    for t in range(1,len(errors)):
-        p = .10
-        alpha = (1-np.sqrt(1-p))/(np.sqrt(2*(1-p)))
-        v = np.sqrt(1/2)
-        fidelity = K_Fidelty(t,alpha,v)
-
-        fids.append(fidelity)
-        errors_avgs.append(np.mean(errors[str(t)]))
-
-    plt.plot(fids,errors_avgs)
-    plt.xlabel('K Fidelity')
-    plt.ylabel('Error')
-    plt.show()
-    '''
-    
-
-    
     #EXAMPLE USAGE
     p = 0.10
-    n = 1  # Number of qubits for psi
-    t = 3  # Number of K qubits 
+    n = 5  # Number of qubits for psi
+    
+    t = 5  # Number of K qubits 
 
     sim = KGadgetSimulator(n,t,p)
 
