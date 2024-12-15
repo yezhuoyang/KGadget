@@ -152,6 +152,8 @@ class KGadgetSimulator:
         stab_states = []
         print("Set of bit str: ")
         for bit_str in basis:
+            print(bit_str)
+            print("np.sum: "+str(np.sum(bit_str)))
             alpha_scalar = alpha**(np.sum(bit_str))
             circuit = self.compressed_partial_circuit(bit_str)
             raw_stab_state = self.run_simulation(circuit)
@@ -238,9 +240,9 @@ if __name__ == '__main__':
 
     #EXAMPLE USAGE
     p = 0.10
-    n = 5  # Number of qubits for psi
+    n = 1  # Number of qubits for psi
     
-    t = 5  # Number of K qubits 
+    t = 3  # Number of K qubits 
 
     sim = KGadgetSimulator(n,t,p)
 
