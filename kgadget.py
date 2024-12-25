@@ -2,6 +2,26 @@ from qiskit import QuantumCircuit, transpile, QuantumRegister, ClassicalRegister
 from qiskit_aer import AerSimulator
 from  qiskit.quantum_info import Kraus
 from qiskit.quantum_info import Statevector
+from qiskit.quantum_info import Operator
+
+
+iop=Operator.from_label('I')
+xop=Operator.from_label('X')
+yop=Operator.from_label('Y')
+zop=Operator.from_label('Z')
+hop=Operator.from_label('H')
+setop=Operator.from_label('S')
+proj0op=Operator.from_label('0')
+proj1op=Operator.from_label('1')
+
+
+#Use lambda function to define the K gate
+Kop = lambda p: Operator([[1,0],[0,p**0.5]])
+iexpand = lambda n: Operator.from_label('I'*n)
+Kop_onqubit = lambda p,ntotal,qubitindex: iexpand(qubitindex-1) ^ Kop(p) ^ iexpand(ntotal-qubitindex-1) 
+
+
+
 
 
 #Qiskit doesn't not support non-unitary circuit simulation
@@ -9,9 +29,12 @@ from qiskit.quantum_info import Statevector
 #by naive state vector simulation
 class noisyQcircuit:
 
-    def __init__(self,n):
+    def __init__(self,n,t,p):
         self._nqubit=0
+        self._t=t
+        self._p=p
         self._circuit_description=[]#List of gates for the circuit
+        self._initstate=Statevector.from_label('0'*n)
 
     def add_x(self, qindex):
         self._circuit_description.append(('x',qindex))
@@ -33,11 +56,18 @@ class noisyQcircuit:
         self._circuit_description.append(('h',qindex))
 
 
+    #Add a projection gate to 0
+    def add_proj0(self, qindex):
+        pass
+
+    #Add a projection gate to 1
+    def add_proj1(self, qindex):
+        pass
+
     #Inject a noise with Kgadget method
     def inject_noise(self, qindex):
         pass
   
-
     #Run the circuit and return a final state vector
     def run(self):
         pass
