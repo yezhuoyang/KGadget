@@ -15,9 +15,15 @@ proj0op=Operator.from_label('0')
 proj1op=Operator.from_label('1')
 
 
+
 #Use lambda function to define the K gate
 Kop = lambda p: Operator([[1,0],[0,p**0.5]])
 iexpand = lambda n: Operator.from_label('I'*n)
+
+
+
+proj1All = lambda n,t: iexpand(n)^Operator.from_label('1'*t)
+
 
 
 #Act gate on a qubit
@@ -199,14 +205,24 @@ class KGadgetSimulator:
 
     #Initialize the exact state vector of kgadget method
     def exact_kstates(self):
-        pass
+        kstate=Statevector([1,self._p**0.5])
+        result=kstate.copy()
+        for i in range(self._t-1):
+            result=result.tensor(kstate)
+
+        zeros=Statevector.from_label('0'*self._n)
+        result=zeros.tensor(result)    
+        norm=abs(result.inner(result))**0.5
+        return result/norm
 
 
 
-    def compile_kgadget_circuit(self):
+    def compile_kgadget_circuit(self,initState=None):
         dataqubit=QuantumRegister(self._n,name='data')
         noisequbit=QuantumRegister(self._t,name='noise')
         self._kgadget_circ= QuantumCircuit(dataqubit,noisequbit)
+        if initState is not None:
+            self._kgadget_circ.set_statevector(initState)
         tmpKindex=0
         for (gate,qindex) in self._circuit_description:
             if gate=='x':
@@ -226,19 +242,50 @@ class KGadgetSimulator:
                 tmpKindex+=1
 
 
-    def run_kadget_circuit(self,inputstr):
+    #Run the exact Kgdaget scheme
+    def run_exact_kgadget_circuit(self):
+        initial_state=self.exact_kstates()
+
+        print("Initial")
+        print(initial_state.to_dict())
+
+        self.compile_kgadget_circuit(initial_state)
+        self._kgadget_circ.save_statevector()
+
+        stabilizer_simulator = AerSimulator(method="statevector")
+
+        circ = transpile(self._kgadget_circ, stabilizer_simulator)
+        # Run and get statevector
+        result = stabilizer_simulator.run(circ).result()
+        statevector = result.get_statevector(self._kgadget_circ)
+
+        # Project all helper qubits to |1>
+        statevector=statevector.evolve(proj1All(self._n,self._t))
+
+        print(statevector.to_dict())
+        return statevector
+
+
+
+    #Run the compressed Kgdaget scheme with a given input string
+    def run_compressed_kadget_circuit_single(self,inputstr):
         simcirc=QuantumCircuit(self._n+self._t)
         for i in range(self._t):
             if inputstr[i]=='+':
                 simcirc.h(self._n+i)
-        simcirc.append(self._kgadget_circ,range(self._n))
+        simcirc.append(self._kgadget_circ,range(self._n+self._t))
         simcirc.save_statevector()
 
         stabilizer_simulator = AerSimulator(method="statevector")
-        circ = transpile(circ, stabilizer_simulator)
+        circ = transpile(simcirc, stabilizer_simulator)
         # Run and get statevector
         result = stabilizer_simulator.run(circ).result()
         statevector = result.get_statevector(simcirc)
+
+        # Project all helper qubits to |1>
+        statevector=statevector.evolve(proj1All(self._n,self._t))
+
+        #print(statevector.to_dict())
         return statevector
         
         
@@ -255,3 +302,16 @@ class KGadgetSimulator:
 
     def run_exact_noisy(self):
         return self._exact_noise_simulator.run()
+    
+
+
+if __name__ == '__main__':
+    ksim=KGadgetSimulator(1,1,0.9)
+    ksim.add_hadamard(0)
+    ksim.inject_noise(0)
+    #ksim.add_z(0)
+    #ksim.inject_noise(0)
+
+    #ksim.compile_kgadget_circuit()
+    print(ksim.run_exact_kgadget_circuit())
+    #print(ksim.run_kadget_circuit('++'))
