@@ -10,7 +10,7 @@ xop=Operator.from_label('X')
 yop=Operator.from_label('Y')
 zop=Operator.from_label('Z')
 hop=Operator.from_label('H')
-setop=Operator.from_label('S')
+sop=Operator.from_label('S')
 proj0op=Operator.from_label('0')
 proj1op=Operator.from_label('1')
 
@@ -18,8 +18,32 @@ proj1op=Operator.from_label('1')
 #Use lambda function to define the K gate
 Kop = lambda p: Operator([[1,0],[0,p**0.5]])
 iexpand = lambda n: Operator.from_label('I'*n)
-Kop_onqubit = lambda p,ntotal,qubitindex: iexpand(qubitindex-1) ^ Kop(p) ^ iexpand(ntotal-qubitindex-1) 
 
+
+#Act gate on a qubit
+single_op_on_qubit = lambda opstr,ntotal,qubitindex: Operator.from_label('I'*(qubitindex)) + opstr + Operator.from_label('I'*(ntotal-qubitindex))
+
+
+proj_on_qubit = lambda projop,ntotal,qubitindex: (
+                projop if ntotal==1 else
+                projop ^ iexpand(ntotal-1) if qubitindex == 0 else
+                iexpand(qubitindex) ^ projop if qubitindex == ntotal - 1 else
+                iexpand(qubitindex) ^ projop ^ iexpand(ntotal-qubitindex-1)
+)
+
+
+Kop_onqubit = lambda p, ntotal, qubitindex: (
+    Kop(p) if ntotal==1 else
+    Kop(p) ^ iexpand(ntotal - qubitindex - 1) if qubitindex == 0 else
+    iexpand(qubitindex) ^ Kop(p) if qubitindex == ntotal - 1 else
+    iexpand(qubitindex) ^ Kop(p) ^ iexpand(ntotal - qubitindex - 1)
+)
+
+
+def cnot_on_qubits(ntotal,qindex1,qindex2):
+    circ=QuantumCircuit(ntotal)
+    circ.cx(ntotal-1-qindex1,ntotal-1-qindex2)
+    return Operator.from_circuit(circ)
 
 
 
@@ -35,6 +59,7 @@ class noisyQcircuit:
         self._p=p
         self._circuit_description=[]#List of gates for the circuit
         self._initstate=Statevector.from_label('0'*n)
+        self._state=None
 
     def add_x(self, qindex):
         self._circuit_description.append(('x',qindex))
@@ -58,19 +83,43 @@ class noisyQcircuit:
 
     #Add a projection gate to 0
     def add_proj0(self, qindex):
-        pass
+        self._circuit_description.append(('proj0',qindex))
 
     #Add a projection gate to 1
     def add_proj1(self, qindex):
-        pass
+        self._circuit_description.append(('proj1',qindex))
 
     #Inject a noise with Kgadget method
     def inject_noise(self, qindex):
-        pass
+        self._circuit_description.append(('K',qindex))
   
+
     #Run the circuit and return a final state vector
     def run(self):
-        pass
+        state=self._initstate 
+        for (gate,qindex) in self._circuit_description:
+            if gate=='x':
+                state=state.evolve(single_op_on_qubit('X',self._nqubit,qindex))
+            elif gate=='y':
+                state=state.evolve(single_op_on_qubit('Y',self._nqubit,qindex))
+            elif gate=='z':
+                state=state.evolve(single_op_on_qubit('Z',self._nqubit,qindex))
+            elif gate=='s':
+                state=state.evolve(single_op_on_qubit('S',self._nqubit,qindex))
+            elif gate=='h':
+                state=state.evolve(single_op_on_qubit('H',self._nqubit,qindex))
+            elif gate=='proj0':
+                state=state.evolve(proj_on_qubit(proj0op,self._nqubit,qindex))
+            elif gate=='proj1':
+                state=state.evolve(proj_on_qubit(proj1op,self._nqubit,qindex))
+            elif gate=='cnot':
+                state=state.evolve(cnot_on_qubits(self._nqubit,qindex[0],qindex[1]))
+            elif gate=='K':
+                state=state.evolve(Kop_onqubit(self._p,self._nqubit,qindex))
+        self._state=state
+        return state
+
+
 
 
 
