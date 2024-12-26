@@ -62,8 +62,6 @@ def cnot_on_qubits(ntotal,qindex1,qindex2):
     return Operator.from_circuit(circ)
 
 
-
-
 def normalize(statevector):
     norm=abs(statevector.inner(statevector))**0.5
     return statevector/norm
@@ -71,6 +69,13 @@ def normalize(statevector):
 
 def fidelity(statevector1,statevector2):
     return abs(statevector1.inner(statevector2))**2
+
+
+
+def theoretical_fidelity(n,t,p):
+    pass
+
+
 
 
 
@@ -341,6 +346,28 @@ class KGadgetSimulator:
     def run_exact_noisy(self):
         return self._exact_noise_simulator.run()
     
+
+
+
+
+
+class repetitionQEC:
+
+
+    def __init__(self,d,t,p):    
+        self.kgadgetsim=KGadgetSimulator(d,t,p)
+
+
+
+
+class surfaceQEC:
+
+
+    def __init__(self,d,t,p):
+        self.kgadgetsim=KGadgetSimulator(d,t,p)
+
+
+
 
 
 if __name__ == '__main__':
