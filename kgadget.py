@@ -64,6 +64,16 @@ def cnot_on_qubits(ntotal,qindex1,qindex2):
 
 
 
+def normalize(statevector):
+    norm=abs(statevector.inner(statevector))**0.5
+    return statevector/norm
+
+
+def fidelity(statevector1,statevector2):
+    return abs(statevector1.inner(statevector2))**2
+
+
+
 #Qiskit doesn't not support non-unitary circuit simulation
 #Noisy Quantum Circuit which simulate a quantum circuit with non-unitary noise
 #by naive state vector simulation
@@ -76,6 +86,7 @@ class noisyQcircuit:
         self._circuit_description=[]#List of gates for the circuit
         self._initstate=Statevector.from_label('0'*n)
         self._state=None
+        
 
     def add_x(self, qindex):
         self._circuit_description.append(('x',qindex))
@@ -153,10 +164,13 @@ class KGadgetSimulator:
 
 
         self._exact_noise_simulator = noisyQcircuit(n,t,p)#Qiskit stabilizer simulator for exact simulation with  noise
+        self._exact_final_state=None#Final state vector of exact simulation with noise
 
 
         self._kgadget_circ=None#Circuit for Kgadget simulation
         self._kgadget_simulator= AerSimulator(method="stabilizer")#Qiskit stabilizer simulator for Kgadget simulation
+        self._kgadget_compressed_final_state=None
+        self._kgadget_non_compressed_final_state=None
 
 
         self._circuit_description=[]#List of gates for the circuit
@@ -222,8 +236,7 @@ class KGadgetSimulator:
 
         zeros=Statevector.from_label('0'*self._n)
         result=result.tensor(zeros)    
-        norm=abs(result.inner(result))**0.5
-        return result/norm
+        return normalize(result)    #Normalize the state vector
 
 
 
@@ -267,10 +280,16 @@ class KGadgetSimulator:
         statevector = result.get_statevector(self._kgadget_circ)
 
         # Project all helper qubits to |1>
-        #statevector=statevector.evolve(proj1All(self._n,self._t))
+        statevector=statevector.evolve(proj1All(self._n,self._t))
 
         print(statevector.to_dict())
-        return statevector
+
+
+
+        self._kgadget_non_compressed_final_state=normalize(statevector)
+        return self._kgadget_non_compressed_final_state
+
+
 
 
 
@@ -280,6 +299,7 @@ class KGadgetSimulator:
         for i in range(self._t):
             if inputstr[i]=='+':
                 simcirc.h(self._n+i)
+        self.compile_kgadget_circuit()
         simcirc.append(self._kgadget_circ,range(self._n+self._t))
         simcirc.save_statevector()
 
@@ -295,11 +315,22 @@ class KGadgetSimulator:
         #print(statevector.to_dict())
         return statevector
         
+
+
+    def run_compressed_kadget_circuit(self,alpha=1):
+        finalstate=self.run_compressed_kadget_circuit_single('+'*self._t)
+        for i in range(self._t):
+            inputstr='0'*i+'+'+'0'*(self._t-i-1)
+            finalstate+=alpha*self.run_compressed_kadget_circuit_single(inputstr)
+        #normalize final state
+        self._kgadget_compressed_final_state=normalize(finalstate)
+        return self._kgadget_compressed_final_state
+
         
 
     #Calculate the fidelity after run several simulations        
-    def fidelity(self):
-        pass
+    def fidelity_of_compression(self):
+        return fidelity(self._kgadget_non_compressed_final_state,self._kgadget_compressed_final_state)
 
 
     #Run the exact circuit without any noise and return a final state vector
@@ -321,4 +352,7 @@ if __name__ == '__main__':
 
     #ksim.compile_kgadget_circuit()
     print(ksim.run_exact_kgadget_circuit())
+    print(ksim.run_compressed_kadget_circuit())
+
+    print(ksim.fidelity_of_compression())
     #print(ksim.run_kadget_circuit('++'))
