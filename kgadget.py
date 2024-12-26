@@ -135,53 +135,55 @@ class KGadgetSimulator:
         self._exact_noiseless_simulator = AerSimulator(method="stabilizer")#Qiskit stabilizer simulator for exact simulation without any noise
         self._exact_noiseless_circuit=QuantumCircuit(n,n)
 
-        self._exact_noise_simulator = AerSimulator()#Qiskit stabilizer simulator for exact simulation with  noise
-        self._exact_noisy_circuit=QuantumCircuit(n,n)
+
+        self._exact_noise_simulator = noisyQcircuit(n,t,p)#Qiskit stabilizer simulator for exact simulation with  noise
 
 
         self._kgadget_circ=None#Circuit for Kgadget simulation
         self._kgadget_simulator= AerSimulator(method="stabilizer")#Qiskit stabilizer simulator for Kgadget simulation
+
 
         self._circuit_description=[]#List of gates for the circuit
         self._Kraus_gateindex=[]#List of Kraus index for each noise gate
 
         self._current_gateindex=0#Index of the current gate
 
+
     def add_x(self, qindex):
         self._exact_noiseless_circuit.x(qindex)
-        self._exact_noisy_circuit.x(qindex)
+        self._exact_noise_simulator.add_x(qindex)
         self._circuit_description.append(('x',qindex))
         self._current_gateindex+=1
 
     def add_y(self, qindex):
         self._exact_noiseless_circuit.y(qindex)
-        self._exact_noisy_circuit.y(qindex)
+        self._exact_noise_simulator.add_y(qindex)
         self._circuit_description.append(('y',qindex))
         self._current_gateindex+=1
 
     def add_z(self, qindex):
         self._exact_noiseless_circuit.z(qindex)
-        self._exact_noisy_circuit.z(qindex)
+        self._exact_noise_simulator.add_z(qindex)
         self._circuit_description.append(('z',qindex))
         self._current_gateindex+=1
 
 
     def add_s(self, qindex):
         self._exact_noiseless_circuit.s(qindex)
-        self._exact_noisy_circuit.s(qindex)
+        self._exact_noise_simulator.add_s(qindex)
         self._circuit_description.append(('s',qindex))
         self._current_gateindex+=1
 
     def add_cnot(self, qindex1, qindex2):
         self._exact_noiseless_circuit.cx(qindex1,qindex2)
-        self._exact_noisy_circuit.cx(qindex1,qindex2)
+        self._exact_noise_simulator.add_cnot(qindex1,qindex2)
         self._circuit_description.append(('cnot',(qindex1,qindex2)))
         self._current_gateindex+=1
 
 
     def add_hadamard(self, qindex):
         self._exact_noiseless_circuit.h(qindex)
-        self._exact_noisy_circuit.h(qindex)
+        self._exact_noise_simulator.add_hadamard(qindex)
         self._circuit_description.append(('h',qindex))
         self._current_gateindex+=1
 
@@ -189,26 +191,56 @@ class KGadgetSimulator:
     #Inject a noise with Kgadget method
     def inject_noise(self, qindex):
         self._circuit_description.append(('K',qindex))
+        self._exact_noise_simulator.inject_noise(qindex)
         self._Kraus_gateindex.append(self._current_gateindex)
         self._current_gateindex+=1
 
 
 
-    #The state initilizarion circuit 
-    def kadget_initialize_circuit(self,statestr=None):
-        stateinit=QuantumCircuit(self._t,self._t)
-
+    #Initialize the exact state vector of kgadget method
+    def exact_kstates(self):
         pass
+
 
 
     def compile_kgadget_circuit(self):
         dataqubit=QuantumRegister(self._n,name='data')
         noisequbit=QuantumRegister(self._t,name='noise')
-        self._kgadget_circ= QuantumCircuit(dataqubit,noisequbit,)
-        for i in range(0,self._t):
+        self._kgadget_circ= QuantumCircuit(dataqubit,noisequbit)
+        tmpKindex=0
+        for (gate,qindex) in self._circuit_description:
+            if gate=='x':
+                self._kgadget_circ.x(qindex)
+            elif gate=='y':
+                self._kgadget_circ.y(qindex)
+            elif gate=='z':
+                self._kgadget_circ.z(qindex)
+            elif gate=='s':
+                self._kgadget_circ.s(qindex)
+            elif gate=='h':
+                self._kgadget_circ.h(qindex)
+            elif gate=='cnot':
+                self._kgadget_circ.cx(qindex[0],qindex[1])
+            elif gate=='K':
+                self._kgadget_circ.cx(qindex,self._n+tmpKindex)
+                tmpKindex+=1
 
-            self._kgadget_circ.append(Kraus(self._p),[noisequbit[i]])
-            pass
+
+    def run_kadget_circuit(self,inputstr):
+        simcirc=QuantumCircuit(self._n+self._t)
+        for i in range(self._t):
+            if inputstr[i]=='+':
+                simcirc.h(self._n+i)
+        simcirc.append(self._kgadget_circ,range(self._n))
+        simcirc.save_statevector()
+
+        stabilizer_simulator = AerSimulator(method="statevector")
+        circ = transpile(circ, stabilizer_simulator)
+        # Run and get statevector
+        result = stabilizer_simulator.run(circ).result()
+        statevector = result.get_statevector(simcirc)
+        return statevector
+        
         
 
     #Calculate the fidelity after run several simulations        
@@ -216,5 +248,10 @@ class KGadgetSimulator:
         pass
 
 
-    def run(self):
+    #Run the exact circuit without any noise and return a final state vector
+    def run_exact_noiseless(self):
         pass
+
+
+    def run_exact_noisy(self):
+        return self._exact_noise_simulator.run()
