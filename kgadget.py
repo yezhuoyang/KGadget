@@ -5,6 +5,16 @@ from qiskit.quantum_info import Statevector
 from qiskit.quantum_info import Operator
 
 
+
+#Label convention for K gadget simulator:
+# Qubit 0~n-1: Data qubits, Qubit n~n+t-1: Noise qubits
+# But keep in mind that the qiskit index is reversed, so the qubit 0 is the rightmost qubit in the circuit
+# The state vector is |n_t-1,n_t-2,...,n_0,q_n-1,q_n-2,...,q_0>
+# To act a singe qubit gate on the kth qubit, the operator is   I^{n-k-1} ^ op ^ I^{k}, note that the order of the operator is is reversed
+# If we use statevector operator string, the string shoould be 'I'*(n-k-1) + op + 'I'*k
+# To act two qubits CNOT gate on qubits (k1,k2), the operator is a two qubit gate with CNOT^{k1,k2}
+
+
 iop=Operator.from_label('I')
 xop=Operator.from_label('X')
 yop=Operator.from_label('Y')
@@ -22,33 +32,33 @@ iexpand = lambda n: Operator.from_label('I'*n)
 
 
 
-proj1All = lambda n,t: iexpand(n)^Operator.from_label('1'*t)
+proj1All = lambda n,t: Operator.from_label('1'*t)^iexpand(n)
 
 
 
 #Act gate on a qubit
-single_op_on_qubit = lambda opstr,ntotal,qubitindex: Operator.from_label('I'*(qubitindex)) + opstr + Operator.from_label('I'*(ntotal-qubitindex))
+single_op_on_qubit = lambda opstr,ntotal,qubitindex: Operator.from_label('I'*(ntotal-qubitindex) + opstr +  'I'*(qubitindex))
 
 
 proj_on_qubit = lambda projop,ntotal,qubitindex: (
                 projop if ntotal==1 else
-                projop ^ iexpand(ntotal-1) if qubitindex == 0 else
-                iexpand(qubitindex) ^ projop if qubitindex == ntotal - 1 else
-                iexpand(qubitindex) ^ projop ^ iexpand(ntotal-qubitindex-1)
+                iexpand(ntotal-1)^projop  if qubitindex == 0 else
+                projop^iexpand(qubitindex) if qubitindex == ntotal - 1 else
+                iexpand(ntotal-qubitindex-1)^ projop ^ iexpand(qubitindex)
 )
 
 
 Kop_onqubit = lambda p, ntotal, qubitindex: (
     Kop(p) if ntotal==1 else
-    Kop(p) ^ iexpand(ntotal - qubitindex - 1) if qubitindex == 0 else
-    iexpand(qubitindex) ^ Kop(p) if qubitindex == ntotal - 1 else
-    iexpand(qubitindex) ^ Kop(p) ^ iexpand(ntotal - qubitindex - 1)
+    iexpand(ntotal - qubitindex - 1)^Kop(p)   if qubitindex == 0 else
+    Kop(p)^iexpand(qubitindex)   if qubitindex == ntotal - 1 else
+     iexpand(ntotal - qubitindex - 1)^ Kop(p) ^iexpand(qubitindex) 
 )
 
 
 def cnot_on_qubits(ntotal,qindex1,qindex2):
     circ=QuantumCircuit(ntotal)
-    circ.cx(ntotal-1-qindex1,ntotal-1-qindex2)
+    circ.cx(qindex1,qindex2)
     return Operator.from_circuit(circ)
 
 
@@ -211,7 +221,7 @@ class KGadgetSimulator:
             result=result.tensor(kstate)
 
         zeros=Statevector.from_label('0'*self._n)
-        result=zeros.tensor(result)    
+        result=result.tensor(zeros)    
         norm=abs(result.inner(result))**0.5
         return result/norm
 
@@ -246,9 +256,6 @@ class KGadgetSimulator:
     def run_exact_kgadget_circuit(self):
         initial_state=self.exact_kstates()
 
-        print("Initial")
-        print(initial_state.to_dict())
-
         self.compile_kgadget_circuit(initial_state)
         self._kgadget_circ.save_statevector()
 
@@ -260,7 +267,7 @@ class KGadgetSimulator:
         statevector = result.get_statevector(self._kgadget_circ)
 
         # Project all helper qubits to |1>
-        statevector=statevector.evolve(proj1All(self._n,self._t))
+        #statevector=statevector.evolve(proj1All(self._n,self._t))
 
         print(statevector.to_dict())
         return statevector
@@ -306,11 +313,11 @@ class KGadgetSimulator:
 
 
 if __name__ == '__main__':
-    ksim=KGadgetSimulator(1,1,0.9)
+    ksim=KGadgetSimulator(1,2,0.5)
     ksim.add_hadamard(0)
     ksim.inject_noise(0)
-    #ksim.add_z(0)
-    #ksim.inject_noise(0)
+    ksim.add_z(0)
+    ksim.inject_noise(0)
 
     #ksim.compile_kgadget_circuit()
     print(ksim.run_exact_kgadget_circuit())
