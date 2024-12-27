@@ -34,6 +34,7 @@ iexpand = lambda n: Operator.from_label('I'*n)
 
 
 proj1All = lambda n,t: Operator.from_label('1'*t)^iexpand(n)
+proj0All = lambda n,t: Operator.from_label('0'*t)^iexpand(n)
 
 
 
@@ -339,7 +340,7 @@ class KGadgetSimulator:
         statevector = result.get_statevector(self._kgadget_circ)
 
         # Project all helper qubits to |1>
-        statevector=statevector.evolve(proj1All(self._n,self._t))
+        statevector=statevector.evolve(proj0All(self._n,self._t))
 
 
         self._kgadget_non_compressed_final_state=normalize(statevector)
@@ -366,7 +367,7 @@ class KGadgetSimulator:
         statevector = result.get_statevector(simcirc)
 
         # Project all helper qubits to |1>
-        statevector=statevector.evolve(proj1All(self._n,self._t))
+        statevector=statevector.evolve(proj0All(self._n,self._t))
 
         #print(statevector.to_dict())
         return statevector
@@ -399,7 +400,7 @@ class KGadgetSimulator:
         print(exactstate)
         fidelity=0
         for i in range(2**self._n):
-            fidelity+=kgadstate['1'*self._t+reverse_binary_string(i)]*exactstate[reverse_binary_string(i)]
+            fidelity+=kgadstate['0'*self._t+reverse_binary_string(i)]*exactstate[reverse_binary_string(i)]
         return abs(fidelity)**2
 
 
