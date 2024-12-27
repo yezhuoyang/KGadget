@@ -134,6 +134,8 @@ class noisyQcircuit:
         self._initstate=Statevector.from_label('0'*n)
         self._state=None
         
+    def set_p(self,p):
+        self._p=p
 
     def add_x(self, qindex):
         self._circuit_description.append(('x',qindex))
@@ -237,6 +239,13 @@ class KGadgetSimulator:
         self._Kraus_gateindex=[]#List of Kraus index for each noise gate
 
         self._current_gateindex=0#Index of the current gate
+
+
+    #Change noise parameter p
+    def set_p(self,p):
+        self._p=p
+        self._exact_noise_simulator.set_p(p)
+
 
 
     def add_x(self, qindex):
@@ -435,11 +444,60 @@ class KGadgetSimulator:
 class repetitionQEC:
 
 
-    def __init__(self,d,t,p):    
-        self.kgadgetsim=KGadgetSimulator(d,t,p)
+    def __init__(self,d,t,p=1):    
+
+        self._nqubits=2*1+1
+        self._nsymdrome=2
+        
+        self.kgadgetsim=KGadgetSimulator(self._nqubits+self._nsymdrome,t,p)
+
+        self.constructed=False
+
+    def construct_circuit(self):
+        if self.constructed:
+            return
+        #Measure stabilizer ZZI
+        self.kgadgetsim.add_hadamard(0)
+        self.kgadgetsim.add_cnot(0,1)
+        self.kgadgetsim.add_cnot(0,2)
 
 
+        self.kgadgetsim.add_cnot(0,3)
+        self.kgadgetsim.inject_noise(0)
+        self.kgadgetsim.add_cnot(1,3)
+        self.kgadgetsim.inject_noise(1)
+        #Meaausre stabilizer IZZ
+        self.kgadgetsim.add_cnot(1,4)
+        self.kgadgetsim.inject_noise(1)
+        self.kgadgetsim.add_cnot(2,4)
+        self.kgadgetsim.inject_noise(2)
+        self.constructed=True
 
+
+    #The logical error rate with exact noisy simulation
+    #Which should be the probability of measuring 
+    def logical_error_rate_kgadget_exact(self,p):
+        if not self.constructed:
+            self.construct_circuit()
+        self.kgadgetsim.set_p(p)
+        final_state=self.kgadgetsim.run_exact_kgadget_circuit()
+        print(final_state.to_dict())
+
+    #The logical error rate with exact noisy simulation
+    def logical_error_rate_kgadget_compressed(self,p):
+        if not self.constructed:
+            self.construct_circuit()
+        self.kgadgetsim.set_p(p)
+        final_state=self.kgadgetsim.run_compressed_kadget_circuit()
+        print(final_state.to_dict())
+
+    #The logical error rate with exact noisy simulation
+    def logical_error_rate_exact(self,p):
+        if not self.constructed:
+            self.construct_circuit()
+        self.kgadgetsim.set_p(p)
+        final_state=self.kgadgetsim.run_exact_noisy_circuit()
+        print(final_state.to_dict())
 
 class surfaceQEC:
 
@@ -452,20 +510,7 @@ class surfaceQEC:
 
 
 if __name__ == '__main__':
-    ksim=KGadgetSimulator(1,2,0.5)
-    ksim.add_hadamard(0)
-    ksim.inject_noise(0)
-    ksim.add_z(0)
-    ksim.inject_noise(0)
-
-    #ksim.compile_kgadget_circuit()
-    ksim.run_exact_kgadget_circuit()
-    ksim.run_compressed_kadget_circuit()
-
-    ksim.run_exact_noisy_circuit()
-
-    ksim.fidelity_of_exact_K_gadget()
-
-
-    #print(ksim.fidelity_of_compression())
-    #print(ksim.run_kadget_circuit('++'))
+    QECC=repetitionQEC(1,4)
+    QECC.logical_error_rate_kgadget_exact(0.9)
+    QECC.logical_error_rate_kgadget_compressed(0.9)
+    QECC.logical_error_rate_exact(0.9)
