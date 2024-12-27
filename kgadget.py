@@ -510,7 +510,9 @@ class surfaceQEC:
 
 
 if __name__ == '__main__':
-    QECC=repetitionQEC(1,4)
-    QECC.logical_error_rate_kgadget_exact(0.9)
-    QECC.logical_error_rate_kgadget_compressed(0.9)
-    QECC.logical_error_rate_exact(0.9)
+    
+    #QECC=repetitionQEC(1,4)
+    #QECC.logical_error_rate_kgadget_exact(0.9)
+    #QECC.logical_error_rate_kgadget_compressed(0.9)
+    #QECC.logical_error_rate_exact(0.9)
+    
