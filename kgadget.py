@@ -3,7 +3,8 @@ from qiskit_aer import AerSimulator
 from  qiskit.quantum_info import Kraus
 from qiskit.quantum_info import Statevector
 from qiskit.quantum_info import Operator
-
+from qiskit.quantum_info import partial_trace
+import math
 
 
 #Label convention for K gadget simulator:
@@ -37,7 +38,7 @@ proj1All = lambda n,t: Operator.from_label('1'*t)^iexpand(n)
 
 
 #Act gate on a qubit
-single_op_on_qubit = lambda opstr,ntotal,qubitindex: Operator.from_label('I'*(ntotal-qubitindex) + opstr +  'I'*(qubitindex))
+single_op_on_qubit = lambda opstr,ntotal,qubitindex: Operator.from_label('I'*(ntotal-qubitindex-1) + opstr +  'I'*(qubitindex))
 
 
 proj_on_qubit = lambda projop,ntotal,qubitindex: (
@@ -72,8 +73,48 @@ def fidelity(statevector1,statevector2):
 
 
 
-def theoretical_fidelity(n,t,p):
-    pass
+def theoretical_fidelity(alpha, s, p):
+    """
+    Computes the function:
+    
+        Fid(alpha)^(s,p) = (1 / (1 + p)^s)
+                           * (2^(-s))
+                           * (1 / (1 + [s*(s+1)/2]*alpha^2 + sqrt(2)*s*alpha))
+                           * { ( sqrt(2)*alpha*s + sqrt(p) + 1 ) * ( sqrt(p)+1 )^(s-1) }^2
+    
+    Parameters
+    ----------
+    alpha : float
+        The alpha parameter (real).
+    s : float
+        The s parameter (real).
+    p : float
+        The p parameter (real).
+    
+    Returns
+    -------
+    float
+        The value of the function for the given alpha, s, and p.
+    """
+    # Term 1: (1 / (1+p)^s)
+    term1 = 1 / ((1 + p) ** s)
+    
+    # Term 2: 2^(-s)
+    term2 = 2 ** (-s)
+    
+    # Denominator in fraction: (1 + s(s+1)/2 * alpha^2 + sqrt(2)*s*alpha)
+    denom = 1 + (s * (s + 1) / 2) * (alpha ** 2) + math.sqrt(2) * s * alpha
+    
+    # Term 3: 1 / denom
+    term3 = 1 / denom
+    
+    # Inner bracket: ( sqrt(2)*alpha*s + sqrt(p) + 1 ) * ( sqrt(p)+1 )^(s-1)
+    bracket = (math.sqrt(2) * alpha * s + math.sqrt(p) + 1) * ((math.sqrt(p) + 1) ** (s - 1))
+    
+    # Term 4: [ bracket ]^2
+    term4 = bracket ** 2
+    
+    return term1 * term2 * term3 * term4
 
 
 
@@ -85,7 +126,7 @@ def theoretical_fidelity(n,t,p):
 class noisyQcircuit:
 
     def __init__(self,n,t,p):
-        self._nqubit=0
+        self._nqubit=n
         self._t=t
         self._p=p
         self._circuit_description=[]#List of gates for the circuit
@@ -152,7 +193,20 @@ class noisyQcircuit:
         return state
 
 
-
+def reverse_binary_string(x: int) -> str:
+    """
+    Convert a binary integer x to the reversed version of its binary string 
+    (excluding the '0b' prefix), preserving the original bit length.
+    
+    Examples:
+    ----------
+    reverse_binary_string(0b1110000)   -> '0000111'
+    reverse_binary_string(0b10100100)  -> '00100101'
+    """
+    # Convert integer x to a binary string (e.g., '0b1110000' -> '1110000')
+    bin_str = bin(x)[2:]
+    # Return the reversed binary string
+    return bin_str[::-1]
 
 
 class KGadgetSimulator:
@@ -169,7 +223,7 @@ class KGadgetSimulator:
 
 
         self._exact_noise_simulator = noisyQcircuit(n,t,p)#Qiskit stabilizer simulator for exact simulation with  noise
-        self._exact_final_state=None#Final state vector of exact simulation with noise
+        self._exact_noisy_final_state=None#Final state vector of exact simulation with noise
 
 
         self._kgadget_circ=None#Circuit for Kgadget simulation
@@ -287,9 +341,6 @@ class KGadgetSimulator:
         # Project all helper qubits to |1>
         statevector=statevector.evolve(proj1All(self._n,self._t))
 
-        print(statevector.to_dict())
-
-
 
         self._kgadget_non_compressed_final_state=normalize(statevector)
         return self._kgadget_non_compressed_final_state
@@ -333,18 +384,47 @@ class KGadgetSimulator:
 
         
 
-    #Calculate the fidelity after run several simulations        
+    #Calculate the fidelity after run several simulations  and take the average of the state vector     
     def fidelity_of_compression(self):
         return fidelity(self._kgadget_non_compressed_final_state,self._kgadget_compressed_final_state)
 
 
+
+
+    #Calculate the fidelity of the exact K gadget method
+    def fidelity_of_exact_K_gadget(self):
+        kgadstate=self._kgadget_non_compressed_final_state.to_dict()
+        print(kgadstate)
+        exactstate=self._exact_noisy_final_state.to_dict()
+        print(exactstate)
+        fidelity=0
+        for i in range(2**self._n):
+            fidelity+=kgadstate['1'*self._t+reverse_binary_string(i)]*exactstate[reverse_binary_string(i)]
+        return abs(fidelity)**2
+
+
+
+
     #Run the exact circuit without any noise and return a final state vector
     def run_exact_noiseless(self):
-        pass
+        self._exact_noiseless_circuit.save_statevector()
+
+        stabilizer_simulator = AerSimulator(method="statevector")
+        circ = transpile(self._exact_noiseless_circuit, stabilizer_simulator)
+        # Run and get statevector
+        result = stabilizer_simulator.run(circ).result()
+        statevector = result.get_statevector(self._exact_noiseless_circui)
+
+        self._exact_noiseless_final_state=normalize(statevector)
+        return self._exact_noiseless_final_state
 
 
-    def run_exact_noisy(self):
-        return self._exact_noise_simulator.run()
+        
+
+
+    def run_exact_noisy_circuit(self):
+        self._exact_noisy_final_state=normalize(self._exact_noise_simulator.run())
+        return self._exact_noisy_final_state
     
 
 
@@ -378,8 +458,13 @@ if __name__ == '__main__':
     ksim.inject_noise(0)
 
     #ksim.compile_kgadget_circuit()
-    print(ksim.run_exact_kgadget_circuit())
-    print(ksim.run_compressed_kadget_circuit())
+    ksim.run_exact_kgadget_circuit()
+    ksim.run_compressed_kadget_circuit()
 
-    print(ksim.fidelity_of_compression())
+    ksim.run_exact_noisy_circuit()
+
+    ksim.fidelity_of_exact_K_gadget()
+
+
+    #print(ksim.fidelity_of_compression())
     #print(ksim.run_kadget_circuit('++'))
